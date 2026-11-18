@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { ArrowLeft, BookUser, ChevronRight, Clock, Plus } from 'lucide-react';
 import { api, fechaHora, pesos, soloFecha } from '../services/api.js';
 import { useSesion } from '../services/sesion.jsx';
-import { Campo, Cargando, Mensaje, Tarjeta, Vacio, useAviso, useDatos } from '../components/ui.jsx';
+import { Campo, Cargando, EncabezadoPagina, Mensaje, Seccion, Vacio, useAvisar, useDatos } from '../components/ui.jsx';
 import { textoVencimiento } from './Inicio.jsx';
 
 /** HU-06 (clientes, deudas y pagos) y HU-07 (alertas de cobro y días de aviso). */
@@ -12,9 +13,9 @@ export default function Fiado() {
   const [nuevo, setNuevo] = useState(null);
   const [errores, setErrores] = useState({});
   const [error, setError] = useState('');
-  const [aviso, setAviso] = useAviso();
+  const avisar = useAvisar();
 
-  const recargarTodo = () => { clientes.recargar(); alertas.recargar(); };
+  const total = clientes.datos?.reduce((s, c) => s + Number(c.saldo_pendiente), 0) || 0;
 
   async function guardarCliente(e) {
     e.preventDefault();
@@ -22,7 +23,7 @@ export default function Fiado() {
     setError('');
     try {
       await api.post('/clientes', nuevo);
-      setAviso('Cliente agregado');
+      avisar('Cliente agregado');
       setNuevo(null);
       clientes.recargar();
     } catch (err) {
@@ -32,67 +33,76 @@ export default function Fiado() {
   }
 
   if (elegido) {
-    return <DetalleCliente cliente={elegido} onVolver={() => { setElegido(null); recargarTodo(); }} />;
+    return <DetalleCliente cliente={elegido} onVolver={() => { setElegido(null); clientes.recargar(); alertas.recargar(); }} />;
   }
 
   return (
     <>
-      <div className="titulo-con-accion">
-        <h1 className="titulo">Fiado</h1>
-        {!nuevo && <button type="button" className="boton" onClick={() => setNuevo({ nombre: '', telefono: '' })}>+ Nuevo cliente</button>}
-      </div>
-      <Mensaje tipo="exito">{aviso}</Mensaje>
+      <EncabezadoPagina
+        titulo="Fiado"
+        subtitulo={clientes.datos ? `Le deben en total ${pesos(total)}` : undefined}
+        accion={!nuevo && <button type="button" className="boton" onClick={() => setNuevo({ nombre: '', telefono: '' })}><Plus size={18} />Nuevo cliente</button>}
+      />
 
       {nuevo && (
-        <Tarjeta titulo="Nuevo cliente">
+        <Seccion titulo="Nuevo cliente">
           <form onSubmit={guardarCliente} noValidate className="formulario">
-            <Mensaje tipo="error">{error}</Mensaje>
-            <Campo etiqueta="Nombre" error={errores.nombre}>
-              <input value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} autoFocus />
-            </Campo>
-            <Campo etiqueta="Celular (opcional)" error={errores.telefono}>
-              <input type="tel" inputMode="tel" value={nuevo.telefono} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
-            </Campo>
+            <Mensaje>{error}</Mensaje>
+            <div className="fila-campos">
+              <Campo etiqueta="Nombre" error={errores.nombre}>
+                <input value={nuevo.nombre} onChange={(e) => setNuevo({ ...nuevo, nombre: e.target.value })} autoFocus />
+              </Campo>
+              <Campo etiqueta="Celular (opcional)" error={errores.telefono}>
+                <input type="tel" inputMode="tel" value={nuevo.telefono} onChange={(e) => setNuevo({ ...nuevo, telefono: e.target.value })} />
+              </Campo>
+            </div>
             <div className="acciones">
               <button className="boton">Guardar</button>
               <button type="button" className="boton boton-secundario" onClick={() => setNuevo(null)}>Cancelar</button>
             </div>
           </form>
-        </Tarjeta>
+        </Seccion>
       )}
 
-      <div className="dos-columnas">
-        <Tarjeta titulo="Clientes">
-          <Mensaje tipo="error">{clientes.error}</Mensaje>
+      <div className="dos-columnas ancha-izquierda">
+        <Seccion titulo="Clientes">
+          <Mensaje>{clientes.error}</Mensaje>
           {clientes.cargando && !clientes.datos ? <Cargando /> : clientes.datos?.length ? (
             <ul className="lista lista-tocable">
               {clientes.datos.map((c) => (
                 <li key={c.id}>
                   <button type="button" onClick={() => setElegido(c)}>
-                    <span><strong>{c.nombre}</strong>{c.telefono && <><br /><small>{c.telefono}</small></>}</span>
-                    <span className={`etiqueta ${c.saldo_pendiente > 0 ? 'etiqueta-aviso' : 'etiqueta-ok'}`}>
-                      {c.saldo_pendiente > 0 ? `Debe ${pesos(c.saldo_pendiente)}` : 'Al día'}
+                    <span className="lista-texto">
+                      <strong>{c.nombre}</strong>
+                      {c.telefono && <small>{c.telefono}</small>}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`etiqueta ${c.saldo_pendiente > 0 ? 'etiqueta-aviso' : 'etiqueta-ok'}`}>
+                        {c.saldo_pendiente > 0 ? pesos(c.saldo_pendiente) : 'Al día'}
+                      </span>
+                      <ChevronRight size={18} className="chevron" aria-hidden="true" />
                     </span>
                   </button>
                 </li>
               ))}
             </ul>
-          ) : <Vacio>Aún no tiene clientes de fiado.</Vacio>}
-        </Tarjeta>
+          ) : <Vacio icono={BookUser}>Aún no tiene clientes de fiado.</Vacio>}
+        </Seccion>
 
-        <div>
-          <Tarjeta titulo="Cobros próximos" className={alertas.datos?.length ? 'tarjeta-aviso' : ''}>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <Seccion titulo="Cobros próximos">
             {alertas.datos?.length ? (
               <ul className="lista">
                 {alertas.datos.map((a) => (
-                  <li key={a.deuda_id}>
-                    <span><strong>{a.cliente}</strong><br /><small>{textoVencimiento(a)}</small></span>
-                    <span className={`etiqueta ${a.estado === 'vencida' ? 'etiqueta-peligro' : 'etiqueta-aviso'}`}>{pesos(a.saldo)}</span>
+                  <li key={a.deuda_id} className="alerta-fila">
+                    <span className={`alerta-icono${a.estado === 'vencida' ? ' peligro' : ''}`} aria-hidden="true"><Clock size={18} /></span>
+                    <span className="lista-texto"><strong>{a.cliente}</strong><small>{textoVencimiento(a)}</small></span>
+                    <span className="valor">{pesos(a.saldo)}</span>
                   </li>
                 ))}
               </ul>
-            ) : <Vacio>No hay cobros próximos.</Vacio>}
-          </Tarjeta>
+            ) : <Vacio icono={Clock}>No hay cobros próximos.</Vacio>}
+          </Seccion>
           <ConfigAviso onCambio={alertas.recargar} />
         </div>
       </div>
@@ -104,14 +114,14 @@ export default function Fiado() {
 function ConfigAviso({ onCambio }) {
   const { usuario, recargar } = useSesion();
   const [dias, setDias] = useState(usuario.dias_aviso_cobro);
-  const [msg, setMsg] = useAviso();
   const [error, setError] = useState('');
+  const avisar = useAvisar();
   async function guardar(e) {
     e.preventDefault();
     setError('');
     try {
       await api.put('/auth/configuracion', { dias_aviso_cobro: Number(dias) });
-      setMsg('Guardado');
+      avisar('Aviso de cobro actualizado');
       await recargar();
       onCambio();
     } catch (err) {
@@ -119,15 +129,14 @@ function ConfigAviso({ onCambio }) {
     }
   }
   return (
-    <Tarjeta titulo="Avisos de cobro">
+    <Seccion titulo="Aviso de cobro">
       <form onSubmit={guardar} className="fila-campos fila-alineada">
-        <Campo etiqueta="Avisarme con estos días de anticipación" error={error}>
+        <Campo etiqueta="Días de anticipación" error={error}>
           <input type="number" inputMode="numeric" min="0" max="60" value={dias} onChange={(e) => setDias(e.target.value)} />
         </Campo>
         <button className="boton boton-secundario">Guardar</button>
       </form>
-      <Mensaje tipo="exito">{msg}</Mensaje>
-    </Tarjeta>
+    </Seccion>
   );
 }
 
@@ -136,15 +145,15 @@ function DetalleCliente({ cliente, onVolver }) {
   const deudas = useDatos(() => api.get(`/fiados?cliente_id=${cliente.id}`), [cliente.id]);
   const [pagando, setPagando] = useState(null); // {id, valor}
   const [error, setError] = useState('');
-  const [aviso, setAviso] = useAviso();
-  const pendiente = deudas.datos?.filter((d) => !d.pagada).reduce((s, d) => s + d.saldo, 0) || 0;
+  const avisar = useAvisar();
+  const pendiente = deudas.datos?.filter((d) => !d.pagada).reduce((s, d) => s + Number(d.saldo), 0) || 0;
 
   async function pagar(e) {
     e.preventDefault();
     setError('');
     try {
       const r = await api.post(`/fiados/${pagando.id}/abonos`, { valor: Number(pagando.valor) });
-      setAviso(r.pagada ? 'Cuenta saldada. El pago se anotó en la caja.' : `Pago registrado. Queda debiendo ${pesos(r.saldo)}.`);
+      avisar(r.pagada ? 'Cuenta saldada' : `Pago registrado. Queda debiendo ${pesos(r.saldo)}`);
       setPagando(null);
       deudas.recargar();
     } catch (err) {
@@ -154,33 +163,30 @@ function DetalleCliente({ cliente, onVolver }) {
 
   return (
     <>
-      <button type="button" className="boton-texto volver" onClick={onVolver}>← Volver a clientes</button>
-      <h1 className="titulo">{cliente.nombre}</h1>
-      <p className="subtitulo">Debe en total: <strong>{pesos(pendiente)}</strong></p>
-      <Mensaje tipo="exito">{aviso}</Mensaje>
-      <Tarjeta titulo="Cuentas">
-        <Mensaje tipo="error">{deudas.error}</Mensaje>
+      <button type="button" className="boton-texto volver" onClick={onVolver}><ArrowLeft size={18} />Clientes</button>
+      <EncabezadoPagina titulo={cliente.nombre} subtitulo={`Debe ${pesos(pendiente)}${cliente.telefono ? ` · ${cliente.telefono}` : ''}`} />
+      <Seccion titulo="Cuentas">
+        <Mensaje>{deudas.error}</Mensaje>
         {deudas.cargando && !deudas.datos ? <Cargando /> : deudas.datos?.length ? (
           <ul className="lista">
             {deudas.datos.map((d) => (
               <li key={d.id} className="deuda">
                 <div className="deuda-fila">
-                  <span>
-                    <strong>{pesos(d.valor)}</strong> · fiado el {fechaHora(d.fecha_venta)}<br />
-                    <small>{d.pagada ? 'Pagada' : `Pagar a más tardar el ${soloFecha(d.fecha_pago_esperada)}`}</small>
+                  <span className="lista-texto">
+                    <strong>{pesos(d.valor)} fiado el {fechaHora(d.fecha_venta)}</strong>
+                    <small>{d.pagada ? 'Pagada' : `Pendiente ${pesos(d.saldo)} · pagar a más tardar el ${soloFecha(d.fecha_pago_esperada)}`}</small>
                   </span>
                   {d.pagada
                     ? <span className="etiqueta etiqueta-ok">Pagada</span>
-                    : <button type="button" className="boton" onClick={() => { setError(''); setPagando({ id: d.id, valor: d.saldo }); }}>Registrar pago</button>}
+                    : pagando?.id !== d.id && <button type="button" className="boton boton-secundario" onClick={() => { setError(''); setPagando({ id: d.id, valor: d.saldo }); }}>Registrar pago</button>}
                 </div>
-                {!d.pagada && <small>Saldo pendiente: <strong>{pesos(d.saldo)}</strong></small>}
                 {pagando?.id === d.id && (
                   <form onSubmit={pagar} className="fila-campos fila-alineada">
-                    <Campo etiqueta="¿Cuánto pagó? ($)" error={error}>
+                    <Campo etiqueta="¿Cuánto pagó?" error={error}>
                       <input type="number" inputMode="decimal" min="0" max={d.saldo} value={pagando.valor} onChange={(e) => setPagando({ ...pagando, valor: e.target.value })} autoFocus />
                     </Campo>
                     <div className="acciones">
-                      <button className="boton">Confirmar</button>
+                      <button className="boton">Confirmar pago</button>
                       <button type="button" className="boton boton-secundario" onClick={() => setPagando(null)}>Cancelar</button>
                     </div>
                   </form>
@@ -188,8 +194,8 @@ function DetalleCliente({ cliente, onVolver }) {
               </li>
             ))}
           </ul>
-        ) : <Vacio>Este cliente no tiene cuentas. Para fiarle, use la pantalla Vender.</Vacio>}
-      </Tarjeta>
+        ) : <Vacio icono={BookUser}>Este cliente no tiene cuentas. Para fiarle, use la pantalla Vender.</Vacio>}
+      </Seccion>
     </>
   );
 }

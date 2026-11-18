@@ -1,8 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/manrope';
 import './index.css';
 import { SesionProvider, useSesion } from './services/sesion.jsx';
+import { AvisosProvider, Cargando } from './components/ui.jsx';
 import Layout from './components/Layout.jsx';
 import Acceso from './pages/Acceso.jsx';
 import Inicio from './pages/Inicio.jsx';
@@ -16,7 +19,7 @@ import Historial from './pages/Historial.jsx';
 
 function Rutas() {
   const { usuario, cargando } = useSesion();
-  if (cargando) return <p className="vacio">Cargando…</p>;
+  if (cargando) return <Cargando />;
   if (!usuario) return <Acceso />;
   return (
     <Routes>
@@ -39,7 +42,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <SesionProvider>
-        <Rutas />
+        <AvisosProvider>
+          <Rutas />
+        </AvisosProvider>
       </SesionProvider>
     </BrowserRouter>
   </React.StrictMode>,
